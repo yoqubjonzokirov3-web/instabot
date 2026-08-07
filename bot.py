@@ -26,6 +26,7 @@ def video_yukla(message):
         ydl_opts = {
             'outtmpl': 'video.mp4',
             'format': 'best',
+            'cookiefile': 'cookies.txt',
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
