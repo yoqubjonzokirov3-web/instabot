@@ -4,7 +4,7 @@ import yt_dlp
 import threading
 from flask import Flask
 
-TOKEN = os.environ.get("8991808714:AAHtxmb6V2skHhJU-5hvd3FrJkok5YKLha0")
+TOKEN = os.environ.get("TELEGRAM_TOKEN")
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 
