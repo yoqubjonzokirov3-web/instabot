@@ -1,4 +1,5 @@
 import os
+import glob
 import telebot
 import yt_dlp
 import threading
@@ -10,7 +11,7 @@ app = Flask(__name__)
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Salom! Menga Instagram video havolasini yuboring, men yuklab beraman 📥")
+    bot.reply_to(message, "Salom! Menga Instagram video yoki rasm havolasini yuboring, men yuklab beraman 📥")
 
 @bot.message_handler(func=lambda message: True)
 def video_yukla(message):
@@ -22,25 +23,38 @@ def video_yukla(message):
     
     kutish_xabar = bot.reply_to(message, "Video yuklanmoqda, biroz kuting... ⏳")
     
+    # Eski fayllarni tozalash
+    for f in glob.glob("post_*.*"):
+        os.remove(f)
+    
     try:
         ydl_opts = {
-            'outtmpl': 'video.mp4',
+            'outtmpl': 'post_%(autonumber)s.%(ext)s',
             'format': 'best',
             'cookiefile': 'cookies.txt',
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
         
-        with open('video.mp4', 'rb') as video:
-            bot.send_video(message.chat.id, video, caption="@Insta_Downloader8_bot")
+        fayllar = sorted(glob.glob("post_*.*"))
         
-        os.remove('video.mp4')
+        if not fayllar:
+            raise Exception("Fayl topilmadi")
+        
+        for fayl in fayllar:
+            kengaytma = fayl.split('.')[-1].lower()
+            with open(fayl, 'rb') as f:
+                if kengaytma in ['jpg', 'jpeg', 'png', 'webp']:
+                    bot.send_photo(message.chat.id, f, caption="@Insta_Downloader8_bot")
+                else:
+                    bot.send_video(message.chat.id, f, caption="@Insta_Downloader8_bot")
+            os.remove(fayl)
         
         bot.edit_message_text("✅", chat_id=message.chat.id, message_id=kutish_xabar.message_id)
         
     except Exception as e:
         bot.edit_message_text(
-            "Kechirasiz, videoni yuklab bo'lmadi. Havola to'g'riligini tekshiring yoki video shaxsiy (private) bo'lishi mumkin.",
+            "Kechirasiz, yuklab bo'lmadi. Havola to'g'riligini tekshiring yoki post shaxsiy (private) bo'lishi mumkin.",
             chat_id=message.chat.id,
             message_id=kutish_xabar.message_id
         )
