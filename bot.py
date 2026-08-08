@@ -3,6 +3,7 @@ import re
 import glob
 import telebot
 import instaloader
+import yt_dlp
 import threading
 from flask import Flask
 
@@ -35,15 +36,20 @@ def shortcode_topish(url):
     m = re.search(r"/(p|reel|tv)/([A-Za-z0-9_-]+)", url)
     return m.group(2) if m else None
 
-def story_ma_lumot_topish(url):
-    m = re.search(r"instagram\.com/stories/([^/]+)/(\d+)", url)
-    if m:
-        return m.group(1), m.group(2)
-    return None, None
-
 def eski_fayllarni_tozalash():
     for f in glob.glob("post/*"):
         os.remove(f)
+    for f in glob.glob("post_*.*"):
+        os.remove(f)
+
+def story_yukla(url):
+    ydl_opts = {
+        'outtmpl': 'post_%(autonumber)s.%(ext)s',
+        'cookiefile': 'cookies.txt',
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+    return sorted(glob.glob("post_*.*"))
 
 @bot.message_handler(func=lambda message: True)
 def video_yukla(message):
@@ -59,23 +65,7 @@ def video_yukla(message):
         eski_fayllarni_tozalash()
         
         if "/stories/" in url:
-            username, story_id = story_ma_lumot_topish(url)
-            if not username:
-                raise Exception("Story havolasi noto'g'ri")
-            
-            profile = instaloader.Profile.from_username(L.context, username)
-            topildi = False
-            for story in L.get_stories(userids=[profile.userid]):
-                for item in story.get_items():
-                    if str(item.mediaid) == story_id:
-                        L.download_storyitem(item, target="post")
-                        topildi = True
-                        break
-                if topildi:
-                    break
-            
-            if not topildi:
-                raise Exception("Story topilmadi (eskirgan yoki mavjud emas)")
+            fayllar = story_yukla(url)
         else:
             shortcode = shortcode_topish(url)
             if not shortcode:
@@ -83,14 +73,10 @@ def video_yukla(message):
             
             post = instaloader.Post.from_shortcode(L.context, shortcode)
             L.download_post(post, target="post")
-        
-        video_fayllar = sorted(glob.glob("post/*.mp4"))
-        rasm_fayllar = sorted(glob.glob("post/*.jpg"))
-        
-        if video_fayllar:
-            fayllar = video_fayllar
-        else:
-            fayllar = rasm_fayllar
+            
+            video_fayllar = sorted(glob.glob("post/*.mp4"))
+            rasm_fayllar = sorted(glob.glob("post/*.jpg"))
+            fayllar = video_fayllar if video_fayllar else rasm_fayllar
         
         if not fayllar:
             raise Exception("Fayl topilmadi")
