@@ -29,11 +29,17 @@ except Exception as e:
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(message, "Salom! Menga Instagram video yoki rasm havolasini yuboring, men yuklab beraman 📥")
+    bot.reply_to(message, "Salom! Menga Instagram video, rasm yoki story havolasini yuboring, men yuklab beraman 📥")
 
 def shortcode_topish(url):
     m = re.search(r"/(p|reel|tv)/([A-Za-z0-9_-]+)", url)
     return m.group(2) if m else None
+
+def story_ma_lumot_topish(url):
+    m = re.search(r"instagram\.com/stories/([^/]+)/(\d+)", url)
+    if m:
+        return m.group(1), m.group(2)
+    return None, None
 
 def eski_fayllarni_tozalash():
     for f in glob.glob("post/*"):
@@ -47,17 +53,36 @@ def video_yukla(message):
         bot.reply_to(message, "Iltimos, to'g'ri Instagram havolasini yuboring.")
         return
     
-    kutish_xabar = bot.reply_to(message, "Video yuklanmoqda, biroz kuting... ⏳")
+    kutish_xabar = bot.reply_to(message, "Yuklanmoqda, biroz kuting... ⏳")
     
     try:
-        shortcode = shortcode_topish(url)
-        if not shortcode:
-            raise Exception("Havoladan post topilmadi")
-        
         eski_fayllarni_tozalash()
         
-        post = instaloader.Post.from_shortcode(L.context, shortcode)
-        L.download_post(post, target="post")
+        if "/stories/" in url:
+            username, story_id = story_ma_lumot_topish(url)
+            if not username:
+                raise Exception("Story havolasi noto'g'ri")
+            
+            profile = instaloader.Profile.from_username(L.context, username)
+            topildi = False
+            for story in L.get_stories(userids=[profile.userid]):
+                for item in story.get_items():
+                    if str(item.mediaid) == story_id:
+                        L.download_storyitem(item, target="post")
+                        topildi = True
+                        break
+                if topildi:
+                    break
+            
+            if not topildi:
+                raise Exception("Story topilmadi (eskirgan yoki mavjud emas)")
+        else:
+            shortcode = shortcode_topish(url)
+            if not shortcode:
+                raise Exception("Havoladan post topilmadi")
+            
+            post = instaloader.Post.from_shortcode(L.context, shortcode)
+            L.download_post(post, target="post")
         
         video_fayllar = sorted(glob.glob("post/*.mp4"))
         rasm_fayllar = sorted(glob.glob("post/*.jpg"))
@@ -84,7 +109,7 @@ def video_yukla(message):
         
     except Exception as e:
         bot.edit_message_text(
-            "Kechirasiz, yuklab bo'lmadi. Havola to'g'riligini tekshiring yoki post shaxsiy (private) bo'lishi mumkin.",
+            "Kechirasiz, yuklab bo'lmadi. Havola to'g'riligini tekshiring yoki post/story shaxsiy bo'lishi mumkin.",
             chat_id=message.chat.id,
             message_id=kutish_xabar.message_id
         )
