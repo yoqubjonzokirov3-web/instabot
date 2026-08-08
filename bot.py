@@ -13,17 +13,7 @@ app = Flask(__name__)
 def start(message):
     bot.reply_to(message, "Salom! Menga Instagram video yoki rasm havolasini yuboring, men yuklab beraman 📥")
 
-@bot.message_handler(func=lambda message: True)
-def video_yukla(message):
-    url = message.text.strip()
-    
-    if "instagram.com" not in url:
-        bot.reply_to(message, "Iltimos, to'g'ri Instagram havolasini yuboring.")
-        return
-    
-    kutish_xabar = bot.reply_to(message, "Video yuklanmoqda, biroz kuting... ⏳")
-    
-    # Eski fayllarni tozalash
+def yuklab_olish(url):
     for f in glob.glob("post_*.*"):
         os.remove(f)
     
@@ -35,8 +25,29 @@ def video_yukla(message):
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-        
-        fayllar = sorted(glob.glob("post_*.*"))
+    except Exception:
+        # Video format topilmasa, rasm sifatida qayta urinib ko'ramiz
+        ydl_opts = {
+            'outtmpl': 'post_%(autonumber)s.%(ext)s',
+            'cookiefile': 'cookies.txt',
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+    
+    return sorted(glob.glob("post_*.*"))
+
+@bot.message_handler(func=lambda message: True)
+def video_yukla(message):
+    url = message.text.strip()
+    
+    if "instagram.com" not in url:
+        bot.reply_to(message, "Iltimos, to'g'ri Instagram havolasini yuboring.")
+        return
+    
+    kutish_xabar = bot.reply_to(message, "Video yuklanmoqda, biroz kuting... ⏳")
+    
+    try:
+        fayllar = yuklab_olish(url)
         
         if not fayllar:
             raise Exception("Fayl topilmadi")
