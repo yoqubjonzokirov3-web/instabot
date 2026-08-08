@@ -20,7 +20,7 @@ def video_yukla(message):
         bot.reply_to(message, "Iltimos, to'g'ri Instagram havolasini yuboring.")
         return
     
-    bot.reply_to(message, "Video yuklanmoqda, biroz kuting... ⏳")
+    kutish_xabar = bot.reply_to(message, "Video yuklanmoqda, biroz kuting... ⏳")
     
     try:
         ydl_opts = {
@@ -32,12 +32,18 @@ def video_yukla(message):
             ydl.download([url])
         
         with open('video.mp4', 'rb') as video:
-            bot.send_video(message.chat.id, video)
+            bot.send_video(message.chat.id, video, caption="@Insta_Downloader8_bot")
         
         os.remove('video.mp4')
         
+        bot.edit_message_text("✅", chat_id=message.chat.id, message_id=kutish_xabar.message_id)
+        
     except Exception as e:
-        bot.reply_to(message, "Kechirasiz, videoni yuklab bo'lmadi. Havola to'g'riligini tekshiring yoki video shaxsiy (private) bo'lishi mumkin.")
+        bot.edit_message_text(
+            "Kechirasiz, videoni yuklab bo'lmadi. Havola to'g'riligini tekshiring yoki video shaxsiy (private) bo'lishi mumkin.",
+            chat_id=message.chat.id,
+            message_id=kutish_xabar.message_id
+        )
         print(f"Xatolik: {e}")
 
 def run_bot():
