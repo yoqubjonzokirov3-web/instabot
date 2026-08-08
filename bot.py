@@ -1,40 +1,43 @@
 import os
+import re
 import glob
 import telebot
-import yt_dlp
+import instaloader
 import threading
 from flask import Flask
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
+IG_USERNAME = os.environ.get("IG_USERNAME")
+IG_PASSWORD = os.environ.get("IG_PASSWORD")
+
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
+
+L = instaloader.Instaloader(
+    dirname_pattern="post",
+    filename_pattern="{shortcode}_{mediaid}",
+    save_metadata=False,
+    download_comments=False,
+    post_metadata_txt_pattern=""
+)
+
+try:
+    L.login(IG_USERNAME, IG_PASSWORD)
+    print("Instagram login muvaffaqiyatli")
+except Exception as e:
+    print(f"Instagram login xatolik: {e}")
 
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.reply_to(message, "Salom! Menga Instagram video yoki rasm havolasini yuboring, men yuklab beraman 📥")
 
-def yuklab_olish(url):
-    for f in glob.glob("post_*.*"):
+def shortcode_topish(url):
+    m = re.search(r"/(p|reel|tv)/([A-Za-z0-9_-]+)", url)
+    return m.group(2) if m else None
+
+def eski_fayllarni_tozalash():
+    for f in glob.glob("post/*"):
         os.remove(f)
-    
-    try:
-        ydl_opts = {
-            'outtmpl': 'post_%(autonumber)s.%(ext)s',
-            'format': 'best',
-            'cookiefile': 'cookies.txt',
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-    except Exception:
-        # Video format topilmasa, rasm sifatida qayta urinib ko'ramiz
-        ydl_opts = {
-            'outtmpl': 'post_%(autonumber)s.%(ext)s',
-            'cookiefile': 'cookies.txt',
-        }
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-    
-    return sorted(glob.glob("post_*.*"))
 
 @bot.message_handler(func=lambda message: True)
 def video_yukla(message):
@@ -47,7 +50,16 @@ def video_yukla(message):
     kutish_xabar = bot.reply_to(message, "Video yuklanmoqda, biroz kuting... ⏳")
     
     try:
-        fayllar = yuklab_olish(url)
+        shortcode = shortcode_topish(url)
+        if not shortcode:
+            raise Exception("Havoladan post topilmadi")
+        
+        eski_fayllarni_tozalash()
+        
+        post = instaloader.Post.from_shortcode(L.context, shortcode)
+        L.download_post(post, target="post")
+        
+        fayllar = sorted(glob.glob("post/*.jpg")) + sorted(glob.glob("post/*.mp4"))
         
         if not fayllar:
             raise Exception("Fayl topilmadi")
@@ -55,11 +67,12 @@ def video_yukla(message):
         for fayl in fayllar:
             kengaytma = fayl.split('.')[-1].lower()
             with open(fayl, 'rb') as f:
-                if kengaytma in ['jpg', 'jpeg', 'png', 'webp']:
-                    bot.send_photo(message.chat.id, f, caption="@Insta_Downloader8_bot")
-                else:
+                if kengaytma == 'mp4':
                     bot.send_video(message.chat.id, f, caption="@Insta_Downloader8_bot")
-            os.remove(fayl)
+                else:
+                    bot.send_photo(message.chat.id, f, caption="@Insta_Downloader8_bot")
+        
+        eski_fayllarni_tozalash()
         
         bot.edit_message_text("✅", chat_id=message.chat.id, message_id=kutish_xabar.message_id)
         
