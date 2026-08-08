@@ -59,7 +59,13 @@ def video_yukla(message):
         post = instaloader.Post.from_shortcode(L.context, shortcode)
         L.download_post(post, target="post")
         
-        fayllar = sorted(glob.glob("post/*.jpg")) + sorted(glob.glob("post/*.mp4"))
+        video_fayllar = sorted(glob.glob("post/*.mp4"))
+        rasm_fayllar = sorted(glob.glob("post/*.jpg"))
+        
+        if video_fayllar:
+            fayllar = video_fayllar
+        else:
+            fayllar = rasm_fayllar
         
         if not fayllar:
             raise Exception("Fayl topilmadi")
