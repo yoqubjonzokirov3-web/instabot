@@ -2,4 +2,3 @@ pyTelegramBotAPI
 instaloader
 yt-dlp
 flask
-imageio-ffmpeg
