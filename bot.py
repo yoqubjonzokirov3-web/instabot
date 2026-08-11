@@ -1,19 +1,15 @@
 import os
 import re
 import glob
-import subprocess
 import telebot
 import instaloader
 import yt_dlp
 import threading
-import imageio_ffmpeg
 from flask import Flask
 
 TOKEN = os.environ.get("TELEGRAM_TOKEN")
 IG_USERNAME = os.environ.get("IG_USERNAME")
 IG_PASSWORD = os.environ.get("IG_PASSWORD")
-
-FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
@@ -34,12 +30,7 @@ except Exception as e:
 
 @bot.message_handler(commands=['start'])
 def start(message):
-    bot.reply_to(
-        message,
-        "Salom! Menga Instagram video, rasm yoki story havolasini yuboring, "
-        "men yuklab beraman 📥\n\n"
-        "Yoki xohlagan qo'shiq nomini yozing, men uni topib MP3 qilib beraman 🎵"
-    )
+    bot.reply_to(message, "Salom! Menga Instagram video, rasm yoki story havolasini yuboring, men yuklab beraman 📥")
 
 def shortcode_topish(url):
     m = re.search(r"/(p|reel|tv)/([A-Za-z0-9_-]+)", url)
@@ -50,108 +41,46 @@ def eski_fayllarni_tozalash():
         os.remove(f)
     for f in glob.glob("post_*.*"):
         os.remove(f)
-    for f in glob.glob("qoshiq_*.*"):
-        os.remove(f)
 
 def story_yukla(url):
     ydl_opts = {
         'outtmpl': 'post_%(autonumber)s.%(ext)s',
         'cookiefile': 'cookies.txt',
-        'ffmpeg_location': FFMPEG_PATH,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         ydl.download([url])
     return sorted(glob.glob("post_*.*"))
 
-def videodan_mp3_qil(video_fayl):
-    """Berilgan video faylidan mp3 audio chiqarib, uning yo'lini qaytaradi."""
-    mp3_fayl = video_fayl.rsplit('.', 1)[0] + '.mp3'
-    subprocess.run(
-        [FFMPEG_PATH, '-y', '-i', video_fayl, '-vn', '-ab', '192k', mp3_fayl],
-        check=True,
-        capture_output=True
-    )
-    return mp3_fayl
-
-def qoshiq_qidirib_yukla(qidiruv_matni):
-    """Qo'shiq nomi bo'yicha YouTube'dan qidirib, mp3 qilib yuklaydi."""
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'outtmpl': 'qoshiq_%(autonumber)s.%(ext)s',
-        'postprocessors': [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '192',
-        }],
-        'noplaylist': True,
-        'default_search': 'ytsearch1',
-        'quiet': True,
-        'ffmpeg_location': FFMPEG_PATH,
-    }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(qidiruv_matni, download=True)
-        if 'entries' in info:
-            info = info['entries'][0]
-        sarlavha = info.get('title', qidiruv_matni)
-
-    fayllar = sorted(glob.glob("qoshiq_*.mp3"))
-    return (fayllar[-1] if fayllar else None), sarlavha
-
 @bot.message_handler(func=lambda message: True)
-def xabar_royxatdan_otish(message):
+def video_yukla(message):
     url = message.text.strip()
-
-    if "instagram.com" in url:
-        instagram_yukla(message, url)
-    else:
-        qoshiq_yukla(message, url)
-
-def qoshiq_yukla(message, qidiruv_matni):
-    kutish_xabar = bot.reply_to(message, "Qo'shiq qidirilmoqda, biroz kuting... 🎵")
-    try:
-        eski_fayllarni_tozalash()
-        mp3_fayl, sarlavha = qoshiq_qidirib_yukla(qidiruv_matni)
-
-        if not mp3_fayl:
-            raise Exception("Qo'shiq topilmadi")
-
-        with open(mp3_fayl, 'rb') as f:
-            bot.send_audio(message.chat.id, f, title=sarlavha, caption="@Insta_Downloader8_bot")
-
-        eski_fayllarni_tozalash()
-        bot.edit_message_text("✅", chat_id=message.chat.id, message_id=kutish_xabar.message_id)
-
-    except Exception as e:
-        bot.edit_message_text(
-            "Kechirasiz, bu qo'shiqni topib bo'lmadi. Boshqa nom bilan urinib ko'ring.",
-            chat_id=message.chat.id,
-            message_id=kutish_xabar.message_id
-        )
-        print(f"Qo'shiq xatolik: {e}")
-
-def instagram_yukla(message, url):
+    
+    if "instagram.com" not in url:
+        bot.reply_to(message, "Iltimos, to'g'ri Instagram havolasini yuboring.")
+        return
+    
     kutish_xabar = bot.reply_to(message, "Yuklanmoqda, biroz kuting... ⏳")
-
+    
     try:
         eski_fayllarni_tozalash()
-
+        
         if "/stories/" in url:
             fayllar = story_yukla(url)
         else:
             shortcode = shortcode_topish(url)
             if not shortcode:
                 raise Exception("Havoladan post topilmadi")
-
+            
             post = instaloader.Post.from_shortcode(L.context, shortcode)
             L.download_post(post, target="post")
-
+            
             video_fayllar = sorted(glob.glob("post/*.mp4"))
             rasm_fayllar = sorted(glob.glob("post/*.jpg"))
             fayllar = video_fayllar if video_fayllar else rasm_fayllar
-
+        
         if not fayllar:
             raise Exception("Fayl topilmadi")
-
+        
         for fayl in fayllar:
             kengaytma = fayl.split('.')[-1].lower()
             with open(fayl, 'rb') as f:
@@ -159,20 +88,11 @@ def instagram_yukla(message, url):
                     bot.send_video(message.chat.id, f, caption="@Insta_Downloader8_bot")
                 else:
                     bot.send_photo(message.chat.id, f, caption="@Insta_Downloader8_bot")
-
-            # Video bo'lsa, uning mp3 versiyasini ham chiqarib yuboramiz
-            if kengaytma == 'mp4':
-                try:
-                    mp3_fayl = videodan_mp3_qil(fayl)
-                    with open(mp3_fayl, 'rb') as f:
-                        bot.send_audio(message.chat.id, f, caption="🎵 Audio versiya")
-                except Exception as e:
-                    print(f"MP3 chiqarishda xatolik: {e}")
-
+        
         eski_fayllarni_tozalash()
-
+        
         bot.edit_message_text("✅", chat_id=message.chat.id, message_id=kutish_xabar.message_id)
-
+        
     except Exception as e:
         bot.edit_message_text(
             "Kechirasiz, yuklab bo'lmadi. Havola to'g'riligini tekshiring yoki post/story shaxsiy bo'lishi mumkin.",
